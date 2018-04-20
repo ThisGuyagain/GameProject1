@@ -8,16 +8,32 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+#include "stb_image.h"
+#include  "MyFiles.h"
 
 #define TRUE 1
 #define FALSE 0
 
+#pragma once
 
 typedef struct
 {
 	//save a handle to a program object
 	GLuint programObject;
+	//atribute locations
+	GLint positionLoc;
+	GLint texCoordLoc;
+	
+	// Sampler location
+	GLint samplerLoc;
+	
+	//texture handle
+	GLuint textureId;
+	
 } UserData;
+	
+	
+
 
 typedef struct Target_State
 {
@@ -61,6 +77,46 @@ static const EGLint context_attributes[] =
 	2,
 	EGL_NONE
 };
+
+/*Create a texture with width and height(4/20)*/
+
+GLuint CreateTexture2D(int width, int height, char* TheData)
+{
+	//Texture handle
+	GLuint textureId;
+
+	//Set the alignment
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	
+	// Genorate a texture Object
+	glGenTextures(1, &textureId);
+	
+	// Bind the texture object
+	glBindTexture(GL_TEXTURE_2D, textureId);
+	
+	// set it up
+	glTexImage2D(GL_TEXTURE_2D,
+		0,
+		GL_RGBA,
+		width,
+		height,
+		0,
+		GL_RGBA,
+		GL_UNSIGNED_BYTE,
+		TheData);
+
+	if (glGetError() != GL_NO_ERROR) printf("God Damn it");
+	
+	// set the filtering mode
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	if (glGetError() == GL_NO_ERROR) return textureId;
+	printf("Huston we have a problem");
+	return textureId;
+	
+}
 
 /*
  Now we have to be able to create a shader object, pass the shader source
@@ -110,14 +166,16 @@ GLbyte vShaderStr[] =
 		"varying vec2 v_texCoord;\n"
 		"void main()\n"
 		"{gl_Position=a_position;\n"
-		" v_texCoord=a_texCoord;}\n";
+		" v_texCoord = a_texCoord;}\n";
 	
 	GLbyte fShaderStr[] = 
 		"precision mediump float;\n"
 		"varying vec2 v_texCoord;\n"
 		"uniform sampler2D s_texture;\n"
 		"void main()\n"
-		"{gl_FragColor=vec4 (1.0,0.0,0.0,1.0);}\n";
+		"{\n"
+		"gl_FragColor= texture2D( s_texture, v_texCoord);\n"
+		"}\n";
 	
 	GLuint programObject, vertexShader, fragmentShader; // we need some variables
 	
@@ -157,6 +215,15 @@ GLbyte vShaderStr[] =
 	}
 	// Store the Program Object
 	p_state->user_data->programObject = programObject;
+	
+	//Get the attribute locations
+	p_state->user_data->positionLoc = glGetAttribLocation(p_state->user_data->programObject, "a_postition");
+	p_state->user_data->texCoordLoc = glGetAttribLocation(p_state->user_data->programObject, "a_texCoord");
+	
+	//get the sampler location
+	p_state->user_data->samplerLoc = glGetUniformLocation(p_state->user_data->programObject, "s_texture");
+	
+	
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	return TRUE;
 	
@@ -232,30 +299,58 @@ void init_ogl(Target_State *state, int width, int height)
 }
 /*
  *
- *Draw a Triangle this is a hard coded
+ *Draw a Rectangle this is a hard coded
  *draw witch is only good for the triangle
  *
 */
 void Draw(Target_State *p_state)
 {
-	UserData *userData = p_state->user_data;
-	GLfloat TriVertices[] =
+	
+	GLfloat RectVertices[] =
 	{ 
-		0.0f, 0.5f, 0.0f,
-		-0.5f, -0.5f, 0.0f,
-		0.5f, -0.5f, 0.0f
+		-0.5f, 0.5f, 0.0f,//pos 0
+		 0.0f, 0.0f, //texCoord 0
+		-0.5f, -0.5f, 0.0f,//pos 1
+		 0.0f, 1.0f, //texCoord 1
+		0.5f, -0.5f, 0.0f, //pos 2
+		1.0f, 1.0f,//texCoord 2
+		0.5f, 0.5f, 0.0f,//pos 3
+		1.0f, 0.0f//texCoord 3		
 	};
+	
+	GLushort indices[] = { 0, 1, 2, 0, 2, 3 };
+	
 	// Setup the veiwport
 	glViewport(0, 0, p_state->width, p_state->height);
+	
+	
 	// Clear the color buffer
 	glClear(GL_COLOR_BUFFER_BIT);
-	// Use the program object
-	glUseProgram(userData->programObject);
-	//Load the vertex data
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, TriVertices);
-	glEnableVertexAttribArray(0);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-	if (glGetError() != GL_NO_ERROR) printf("Oh bugger");
+	
+	
+	// set up the program object
+	glUseProgram(p_state->user_data->programObject);
+	
+	
+	//Load the vertex pos
+	glVertexAttribPointer(p_state->user_data->positionLoc, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), &RectVertices[3]);
+
+	//Load the texture coords
+	glVertexAttribPointer(p_state->user_data->texCoordLoc, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), &RectVertices[3]);
+	
+	glEnableVertexAttribArray(p_state->user_data->positionLoc);
+	glEnableVertexAttribArray(p_state->user_data->texCoordLoc);
+	
+	
+	//bind the texture
+	glActiveTexture (GL_TEXTURE0);
+	glBindTexture (GL_TEXTURE_2D, p_state->user_data->textureId);
+	
+	
+	//Draw the rect as 2 sets of 3 vertices
+	glDrawElements (GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, indices);
+	
+	if (glGetError() != GL_NO_ERROR) printf("Oh bugger\n");
 	
 }
 void esInitContext(Target_State *p_state)
@@ -275,15 +370,17 @@ void esInitContext(Target_State *p_state)
 	void esMainLoop(Target_State *esContext)
 	{
 		int Counter = 0; // Keep a counter
-		while(Counter++ < 200)
+		while(Counter++ < 2000)
 		{
 			if (esContext->draw_func != NULL)
 				esContext->draw_func(esContext);
 			// after our draw we need to swap buffers to display
 			eglSwapBuffers(esContext->display, esContext->surface);
+			
 		}
-		
+	
 	}
+
 int main(int argc, char *argv[])
 {
 	UserData user_data;
@@ -291,12 +388,24 @@ int main(int argc, char *argv[])
 	esInitContext(p_state);
 	uint width, height;
 	//graphics_get_display_size(0, &width, &height);
+	//init_ogl(p_state, width, height);
 	init_ogl (p_state, 720, 720);
 	p_state->user_data = &user_data;
+	
+	MyFiles FileHandler;
 	
 	if (!Init(p_state))
 		return 0;
 	esRegisterDrawFunc(p_state, Draw);
-	//now godo the grapgic loop
+	//now do the graphic loop
 	esMainLoop(p_state);
+	
+	
+	
+	int Width, Height;
+	char* OurRawData = FileHandler.Load((char*)"../Assets/albinosmurk.jpg", &Width, &Height);
+	if (OurRawData == NULL) printf("The thing didnt load\n");
+	
+	p_state->user_data->textureId = CreateTexture2D(Width, Height, OurRawData);
+	
 }

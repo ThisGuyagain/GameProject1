@@ -132,12 +132,14 @@
   <ItemDefinitionGroup>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="MyFiles.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
   <ItemGroup>
     <ClCompile Include="GameProject1.cpp" />
+    <ClCompile Include="MyFiles.cpp" />
     <None Include="Makefile" />
     <None Include="debug.mak" />
     <None Include="release.mak" />
